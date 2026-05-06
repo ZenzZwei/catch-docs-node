@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CatchDocs</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --border-strong: #d1d5db;
+      --fg: #1a1a2e;
+      --muted: #6b7280;
+      --subtle: #9ca3af;
+      --accent: #1a1a2e;
+      --accent-fg: #ffffff;
+      --primary: #0d9488;
+      --primary-hover: #0f766e;
+      --primary-soft: rgba(13,148,136,.08);
+      --ok: #059669;
+      --ok-soft: rgba(5,150,105,.08);
+      --warn: #d97706;
+      --warn-soft: rgba(217,119,6,.08);
+      --err: #dc2626;
+      --err-soft: rgba(220,38,38,.08);
+      --info-soft: rgba(59,130,246,.08);
+      --mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      --radius: 8px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1117; --card: #161b22; --border: #2a2f3a; --border-strong: #3b4252;
+        --fg: #e2e4ea; --muted: #8b95a5; --subtle: #5c6370;
+        --accent: #e2e4ea; --accent-fg: #0f1117;
+        --primary: #2dd4bf; --primary-hover: #5eead4;
+        --primary-soft: rgba(45,212,191,.1);
+        --ok-soft: rgba(52,211,153,.1); --warn-soft: rgba(251,191,36,.1);
+        --err-soft: rgba(248,113,113,.1); --info-soft: rgba(96,165,250,.1);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg); color: var(--fg);
+    }
+
+    /* ---- topbar ---------------------------------------------------------- */
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 12px 24px; display: flex; align-items: center; gap: 14px;
+    }
+    .topbar h1 {
+      margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.02em;
+      padding-left: 12px; border-left: 3px solid var(--primary);
+    }
+    .topbar .sub { color: var(--muted); font-size: 13px; }
+    .topbar .spacer { flex: 1; }
+
+    /* ---- status pill ------------------------------------------------------ */
+    .status {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 500;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--subtle); }
+    .status.running { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+    .status.running::before { background: var(--primary); animation: pulse 1.2s infinite; }
+    .status.done { border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+    .status.done::before { background: var(--ok); }
+    .status.error { border-color: var(--err); color: var(--err); background: var(--err-soft); }
+    .status.error::before { background: var(--err); }
+    .status.cancelled { border-color: var(--warn); color: var(--warn); background: var(--warn-soft); }
+    .status.cancelled::before { background: var(--warn); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ---- main layout ----------------------------------------------------- */
+    main { max-width: 860px; margin: 0 auto; padding: 28px 24px 140px; }
+
+    /* ---- cards ----------------------------------------------------------- */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px; margin-bottom: 18px;
+    }
+    .card h2 {
+      margin: 0 0 4px; font-size: 15px; font-weight: 600; letter-spacing: -.01em;
+      color: var(--primary);
+    }
+    .card .desc { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+    /* ---- fields ---------------------------------------------------------- */
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+    input[type=text], input[type=number], textarea, select {
+      width: 100%; padding: 9px 12px; background: var(--card);
+      border: 1px solid var(--border-strong); border-left: 2px solid var(--border-strong);
+      border-radius: 6px; color: var(--fg);
+      font: inherit; font-size: 13.5px;
+      transition: border-color .15s;
+    }
+    textarea { font-family: var(--mono); font-size: 12.5px; min-height: 68px; resize: vertical; }
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: var(--primary);
+      border-left: 2px solid var(--primary);
+    }
+
+    /* ---- segmented control ------------------------------------------------ */
+    .segmented {
+      display: inline-flex; background: transparent; border: 1px solid var(--border);
+      border-radius: 6px; padding: 2px; gap: 0;
+    }
+    .segmented input { display: none; }
+    .segmented label {
+      padding: 6px 14px; border-radius: 4px; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--muted);
+      margin: 0; transition: all .15s;
+      border-bottom: 2px solid transparent;
+    }
+    .segmented label:hover { color: var(--fg); }
+    .segmented input:checked + label {
+      background: var(--primary-soft); color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+    /* ---- checkboxes ------------------------------------------------------ */
+    .checks { display: flex; gap: 18px; flex-wrap: wrap; padding-top: 4px; }
+    .checks label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13.5px; font-weight: 400; cursor: pointer;
+    }
+    .checks input[type=checkbox] { accent-color: var(--primary); }
+
+    /* ---- advanced details ------------------------------------------------ */
+    details.advanced {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      margin-bottom: 18px;
+    }
+    details.advanced summary {
+      list-style: none; cursor: pointer; padding: 16px 24px;
+      font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;
+      transition: color .15s;
+    }
+    details.advanced summary:hover { color: var(--primary); }
+    details.advanced summary::-webkit-details-marker { display: none; }
+    details.advanced summary::before {
+      content: "▸"; color: var(--muted); transition: transform .15s;
+    }
+    details.advanced[open] summary::before { transform: rotate(90deg); color: var(--primary); }
+    details.advanced > div { padding: 0 24px 22px; }
+
+    /* ---- action bar ------------------------------------------------------ */
+    .actionbar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 8;
+      padding: 14px 24px;
+      background: linear-gradient(180deg, transparent, var(--bg) 40%);
+      pointer-events: none;
+    }
+    .actionbar .inner {
+      max-width: 860px; margin: 0 auto; pointer-events: auto;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 14px;
+      display: flex; gap: 10px; align-items: center;
+    }
+
+    /* ---- buttons --------------------------------------------------------- */
+    button {
+      font: inherit; font-size: 13.5px; font-weight: 500;
+      padding: 9px 16px; border-radius: 6px; border: 1px solid transparent;
+      cursor: pointer; transition: all .12s;
+    }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button.primary {
+      background: var(--primary); color: #fff;
+    }
+    button.primary:hover:not(:disabled) { background: var(--primary-hover); }
+    button.ghost {
+      background: transparent; color: var(--fg); border-color: var(--border-strong);
+    }
+    button.ghost:hover:not(:disabled) {
+      border-color: var(--primary); color: var(--primary);
+    }
+    button.danger {
+      background: transparent; color: var(--err); border-color: var(--border-strong);
+    }
+    button.danger:hover:not(:disabled) {
+      background: var(--err); color: #fff; border-color: var(--err);
+    }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button.icon { padding: 6px 10px; font-size: 13px; }
+
+    /* ---- drawer ---------------------------------------------------------- */
+    .drawer-toggle {
+      position: fixed; right: 24px; bottom: 96px; z-index: 20;
+      background: var(--primary); color: #fff;
+      border-radius: 999px; padding: 10px 16px; font-weight: 600;
+      border: 0; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      transition: background .15s;
+    }
+    .drawer-toggle:hover { background: var(--primary-hover); }
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100vw);
+      background: var(--card); border-left: 1px solid var(--border);
+      transform: translateX(100%); transition: transform .22s ease;
+      display: flex; flex-direction: column; z-index: 30;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer > header {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .drawer header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+
+    /* ---- tabs ------------------------------------------------------------ */
+    .tabs { display: flex; gap: 2px; }
+    .tab {
+      padding: 5px 12px; border-radius: 4px; font-size: 12.5px; cursor: pointer;
+      color: var(--muted); font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all .12s;
+    }
+    .tab:hover { color: var(--fg); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .drawer .body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .tabPane { flex: 1; overflow: auto; }
+
+    /* ---- logs ------------------------------------------------------------ */
+    #logs { font-family: var(--mono); font-size: 12px; padding: 12px 16px;
+      white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
+    #logs .info { color: var(--fg); }
+    #logs .warn { color: var(--warn); }
+    #logs .err  { color: var(--err); }
+
+    /* ---- tree ------------------------------------------------------------ */
+    #tree { font-family: var(--mono); font-size: 12.5px; padding: 12px 16px; }
+    #tree ul { list-style: none; padding-left: 14px; margin: 0; border-left: 1px dashed var(--border); }
+    #tree > ul { padding-left: 0; border-left: none; }
+    #tree li { padding: 2px 0; }
+    #tree .dir { color: var(--primary); font-weight: 600; cursor: pointer; user-select: none; }
+    #tree .file { cursor: pointer; transition: color .1s; }
+    #tree .file:hover { color: var(--primary); }
+    #tree .dir:hover { opacity: .8; }
+
+    /* ---- preview --------------------------------------------------------- */
+    #preview {
+      font-family: var(--mono); font-size: 12px; padding: 12px 16px;
+      white-space: pre-wrap; word-break: break-word; line-height: 1.55;
+      border-top: 1px solid var(--border); max-height: 45%; overflow: auto;
+      background: var(--bg);
+    }
+    #preview.rendered {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 13.5px; white-space: normal;
+    }
+    #preview.rendered h1, #preview.rendered h2, #preview.rendered h3 {
+      margin-top: 1.2em; margin-bottom: .4em; font-weight: 600; line-height: 1.3;
+    }
+    #preview.rendered h1 { font-size: 1.4em; border-bottom: 1px solid var(--border); padding-bottom: .2em; }
+    #preview.rendered h2 { font-size: 1.2em; }
+    #preview.rendered h3 { font-size: 1.05em; }
+    #preview.rendered p { margin: .6em 0; }
+    #preview.rendered code {
+      font-family: var(--mono); font-size: 11.5px;
+      background: var(--primary-soft); padding: 1px 5px; border-radius: 4px;
+    }
+    #preview.rendered pre {
+      background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px; overflow: auto; font-size: 11.5px;
+    }
+    #preview.rendered pre code { background: transparent; border: 0; padding: 0; }
+    #preview.rendered a { color: var(--primary); text-decoration: none; }
+    #preview.rendered a:hover { text-decoration: underline; }
+    #preview.rendered blockquote {
+      border-left: 3px solid var(--primary); padding-left: 12px;
+      color: var(--muted); margin: .6em 0;
+    }
+    #preview.rendered table { border-collapse: collapse; margin: .6em 0; }
+    #preview.rendered th, #preview.rendered td {
+      border: 1px solid var(--border); padding: 5px 10px; font-size: 12.5px;
+    }
+    #preview.rendered th { background: var(--primary-soft); font-weight: 600; }
+    #preview.rendered img { max-width: 100%; }
+    #previewToolbar { display: none !important; }
+    #previewToolbar.show { display: flex !important; }
+
+    /* ---- history --------------------------------------------------------- */
+    .hist-item {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      border-left: 3px solid var(--subtle);
+      padding: 10px 12px; margin-bottom: 8px; background: var(--card);
+      transition: border-color .15s;
+    }
+    .hist-item:has(.status.done) { border-left-color: var(--ok); }
+    .hist-item:has(.status.error) { border-left-color: var(--err); }
+    .hist-item:has(.status.running) { border-left-color: var(--primary); }
+    .hist-item:has(.status.cancelled) { border-left-color: var(--warn); }
+    .hist-item .row1 { display:flex; align-items:center; gap:8px; font-size: 12.5px; }
+    .hist-item .kind { font-weight: 600; color: var(--primary); }
+    .hist-item .url { color: var(--muted); font-family: var(--mono); font-size: 11.5px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .hist-item .meta { color: var(--subtle); font-size: 11.5px; margin-top: 3px; font-family: var(--mono); }
+
+    /* ---- toast ----------------------------------------------------------- */
+    .toast {
+      position: fixed; top: 70px; left: 50%; transform: translate(-50%, -8px); z-index: 40;
+      background: var(--primary); color: #fff;
+      padding: 10px 16px; border-radius: 6px; font-size: 13px; font-weight: 500;
+      opacity: 0; transition: opacity .2s, transform .2s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* ---- chips ----------------------------------------------------------- */
+    .helper-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 999px;
+      background: transparent; border: 1px solid var(--border-strong);
+      font-size: 12px; cursor: pointer; color: var(--fg);
+      font-weight: 500; transition: all .12s;
+    }
+    .chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+    code.inline {
+      font-family: var(--mono); font-size: 11.5px;
+      background: var(--primary-soft); padding: 1px 6px; border-radius: 4px;
+    }
+
+    /* ---- directory picker modal ----------------------------------------- */
+    .dir-overlay {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(0,0,0,.3); display: none; align-items: center; justify-content: center;
+    }
+    .dir-overlay.open { display: flex; }
+    .dir-modal {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      width: min(480px, 90vw); max-height: 70vh; display: flex; flex-direction: column;
+    }
+    .dir-modal header {
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dir-modal header h4 { margin: 0; font-size: 14px; font-weight: 600; }
+    .dir-modal .dir-path {
+      padding: 8px 16px; font-family: var(--mono); font-size: 12px;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dir-modal .dir-list {
+      flex: 1; overflow: auto; padding: 4px 0; min-height: 200px;
+    }
+    .dir-modal .dir-item {
+      padding: 6px 16px; cursor: pointer; font-size: 13px;
+      display: flex; align-items: center; gap: 6px;
+      transition: background .1s;
+    }
+    .dir-modal .dir-item:hover { background: var(--primary-soft); color: var(--primary); }
+    .dir-modal .dir-item.up { color: var(--muted); font-style: italic; }
+    .dir-modal footer {
+      padding: 10px 16px; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>🪝 CatchDocs</h1>
+    <span class="sub">网页文档抓取 → Markdown</span>
+    <span class="spacer"></span>
+    <span id="jobStatus" class="status">idle</span>
+  </div>
+
+  <main>
+    <div class="card">
+      <h2>起始 URL</h2>
+      <div class="desc">粘贴要抓取的页面地址，每行一个。</div>
+      <div class="field">
+        <textarea id="startUrls" rows="2" placeholder="在这里粘贴要抓取的页面地址，每行一个" autocomplete="off"></textarea>
+      </div>
+
+      <div class="field">
+        <label>抓取范围</label>
+        <div class="segmented" role="radiogroup">
+          <input type="radio" id="sc-single" name="scope" value="single" />
+          <label for="sc-single">仅当前页</label>
+          <input type="radio" id="sc-sidebar" name="scope" value="sidebar" checked />
+          <label for="sc-sidebar">同目录及子页</label>
+          <input type="radio" id="sc-custom" name="scope" value="custom" />
+          <label for="sc-custom">自定义</label>
+        </div>
+        <div class="hint" id="scopeHint">自动抓取起始 URL 所在目录及其所有子页（推荐）。</div>
+      </div>
+
+      <div id="customBox" class="field" style="display:none">
+        <label>Include Patterns（正则，每行一个）</label>
+        <textarea id="includePatterns" rows="2" placeholder="^https://wiki\.example\.com/docs/product/"></textarea>
+        <div class="helper-row">
+          <span style="color:var(--muted);font-size:12px;align-self:center">基于第一个 URL 快速生成：</span>
+          <span class="chip" data-preset="path">当前路径及子页</span>
+          <span class="chip" data-preset="parent">上一级及其下所有</span>
+          <span class="chip" data-preset="host">整个站点</span>
+          <span class="chip" data-preset="exact">仅这一页</span>
+        </div>
+        <div class="hint" id="patternPreview"></div>
+      </div>
+    </div>
+
+    <details class="advanced">
+      <summary>高级选项</summary>
+      <div>
+        <div class="grid2">
+          <div class="field">
+            <label>输出目录</label>
+            <div style="display:flex;gap:6px">
+              <input id="output" type="text" style="flex:1" />
+              <button type="button" class="ghost icon" id="browseOutputBtn" title="浏览目录">📂</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>登录会话目录（Profile）</label>
+            <input id="profileDir" type="text" />
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="field">
+            <label>浏览器</label>
+            <select id="browserChannel">
+              <option value="chrome">Chrome</option>
+              <option value="msedge">Edge</option>
+              <option value="chromium">Chromium</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>并发</label>
+            <input id="concurrency" type="number" min="1" max="10" />
+          </div>
+          <div class="field">
+            <label>请求间隔 (ms)</label>
+            <input id="requestDelayMs" type="number" min="0" />
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div class="field">
+            <label>最多页数</label>
+            <input id="maxPages" type="number" min="1" />
+          </div>
+          <div class="field">
+            <label>最大深度</label>
+            <input id="maxDepth" type="number" min="1" />
+          </div>
+          <div class="field">
+            <label>Wait For Selector</label>
+            <input id="waitForSelector" type="text" placeholder="article, main" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Exclude Patterns</label>
+          <textarea id="excludePatterns" rows="2"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Content Selectors</label>
+          <textarea id="contentSelectors" rows="3"></textarea>
+          <div class="hint">正文选择器，按顺序尝试；识别不到会自动挑最大文本块。</div>
+        </div>
+
+        <div class="field">
+          <label>Nav Selectors</label>
+          <textarea id="navSelectors" rows="2"></textarea>
+          <div class="hint">发现链接用的选择器（如侧边栏）。</div>
+        </div>
+
+        <div class="field">
+          <div class="checks">
+            <label><input id="headless" type="checkbox" /> Headless 模式</label>
+            <label><input id="downloadAssets" type="checkbox" /> 下载图片</label>
+            <label><input id="sameOriginOnly" type="checkbox" /> 仅同源</label>
+            <label><input id="useSitemap" type="checkbox" /> 读取 sitemap.xml</label>
+            <label><input id="respectRobots" type="checkbox" /> 遵守 robots.txt</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>登录会话（Profile）</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="profileSelect" style="flex:1;min-width:180px"></select>
+            <input id="newProfileName" type="text" placeholder="新建会话名（如 eng-ms）" style="flex:1;min-width:160px" />
+            <button type="button" class="ghost icon" id="createProfileBtn">新建</button>
+          </div>
+          <div class="hint">每个会话保存一份独立的 Cookie/登录态；切换账号时新建即可。</div>
+        </div>
+      </div>
+    </details>
+  </main>
+
+  <div class="actionbar">
+    <div class="inner">
+      <button id="crawlBtn" class="primary">开始抓取</button>
+      <button id="loginBtn" class="ghost">浏览器登录</button>
+      <button id="saveBtn" class="ghost">保存配置</button>
+      <span style="flex:1"></span>
+      <button id="cancelBtn" class="danger" disabled>取消</button>
+    </div>
+  </div>
+
+  <button id="drawerToggle" class="drawer-toggle">📋 任务面板</button>
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <header>
+      <h3>任务面板</h3>
+      <div class="tabs">
+        <span class="tab active" data-tab="logs">日志</span>
+        <span class="tab" data-tab="tree">输出</span>
+        <span class="tab" data-tab="history">历史</span>
+      </div>
+      <span style="flex:1"></span>
+      <button class="icon ghost" id="drawerClose">✕</button>
+    </header>
+    <div class="body">
+      <div class="tabPane" id="logsPane"><div id="logs"></div></div>
+      <div class="tabPane" id="treePaneWrap" style="display:none">
+        <div id="tree">尚无输出。</div>
+        <div id="previewToolbar" style="padding:6px 12px;border-top:1px solid var(--border);gap:6px;align-items:center;justify-content:flex-end">
+          <span id="previewPathLabel" style="font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-right:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%"></span>
+          <div class="segmented" style="padding:2px">
+            <input type="radio" id="pv-rendered" name="previewMode" value="rendered" checked />
+            <label for="pv-rendered">渲染</label>
+            <input type="radio" id="pv-source" name="previewMode" value="source" />
+            <label for="pv-source">源码</label>
+          </div>
+        </div>
+        <div id="preview" style="display:none"></div>
+      </div>
+      <div class="tabPane" id="historyPane" style="display:none">
+        <div id="history" style="padding:12px 16px;font-size:13px"></div>
+      </div>
+    </div>
+  </aside>
+
+  <div id="dirOverlay" class="dir-overlay">
+    <div class="dir-modal">
+      <header>
+        <h4>选择目录</h4>
+        <span style="flex:1"></span>
+        <button class="icon ghost" id="dirClose">✕</button>
+      </header>
+      <div class="dir-path" id="dirCurrent"></div>
+      <div class="dir-list" id="dirList"></div>
+      <footer>
+        <button class="ghost" id="dirCancel">取消</button>
+        <button class="primary" id="dirSelect">选择此目录</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const listFields = ['includePatterns','excludePatterns','contentSelectors','navSelectors'];
+    const boolFields = ['headless','downloadAssets','sameOriginOnly','useSitemap','respectRobots'];
+    const numFields  = ['concurrency','requestDelayMs','maxPages','maxDepth'];
+    const strFields  = ['output','profileDir','browserChannel','waitForSelector'];
+
+    async function loadConfig() {
+      const r = await fetch('/api/config');
+      if (!r.ok) return;
+      const c = await r.json();
+      listFields.forEach(k => $(k).value = (c[k] || []).join('\n'));
+      boolFields.forEach(k => $(k).checked = !!c[k]);
+      numFields.forEach(k => $(k).value = c[k] ?? '');
+      strFields.forEach(k => $(k).value = c[k] ?? '');
+      const scope = c.scope || 'sidebar';
+      const r2 = document.querySelector(`input[name=scope][value=${scope}]`);
+      if (r2) r2.checked = true;
+      updateScopeUi();
+      updatePatternPreview();
+    }
+    function collectConfig() {
+      const out = {};
+      out.startUrls = $('startUrls').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      listFields.forEach(k => out[k] = $(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean));
+      boolFields.forEach(k => out[k] = $(k).checked);
+      numFields.forEach(k => out[k] = Number($(k).value));
+      strFields.forEach(k => out[k] = $(k).value || null);
+      out.scope = document.querySelector('input[name=scope]:checked').value;
+      return out;
+    }
+    async function saveConfig() {
+      const r = await fetch('/api/config', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(collectConfig())
+      });
+      toast(r.ok ? '已保存' : '保存失败');
+    }
+
+    // toast
+    let toastTimer;
+    function toast(msg) {
+      const t = $('toast'); t.textContent = msg; t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+    }
+
+    // scope UI
+    const scopeHints = {
+      single:  '只抓起始 URL 这一页，不跟进任何链接。',
+      sidebar: '自动抓取起始 URL 所在目录及其所有子页（推荐）。',
+      custom:  '完全由下方 Include Patterns 决定抓哪些页。',
+    };
+    function currentScope() {
+      return document.querySelector('input[name=scope]:checked')?.value || 'sidebar';
+    }
+    function updateScopeUi() {
+      const s = currentScope();
+      $('scopeHint').textContent = scopeHints[s];
+      $('customBox').style.display = s === 'custom' ? '' : 'none';
+    }
+    document.querySelectorAll('input[name=scope]').forEach(r =>
+      r.addEventListener('change', updateScopeUi));
+
+    // URL → regex
+    function escReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function firstUrl() {
+      const raw = $('startUrls').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean)[0];
+      if (!raw) return null;
+      try { return new URL(raw); } catch { return null; }
+    }
+    function buildPattern(preset, u) {
+      const segs = u.pathname.split('/').filter(Boolean);
+      if (preset === 'path')   return `^${escReg(u.origin + '/' + segs.join('/'))}(/|$)`;
+      if (preset === 'parent') { segs.pop(); return `^${escReg(u.origin + '/' + segs.join('/'))}(/|$)`; }
+      if (preset === 'host')   return `^${escReg(u.origin)}/`;
+      if (preset === 'exact')  return `^${escReg(u.origin + u.pathname)}$`;
+      return '';
+    }
+    function genPattern(preset) {
+      const u = firstUrl();
+      if (!u) return toast('先填起始 URL');
+      const pat = buildPattern(preset, u);
+      const ta = $('includePatterns');
+      const list = ta.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      if (!list.includes(pat)) list.push(pat);
+      ta.value = list.join('\n');
+      updatePatternPreview();
+      toast('已插入正则');
+    }
+    function updatePatternPreview() {
+      const u = firstUrl();
+      const el = $('patternPreview');
+      if (!u) { el.textContent = ''; return; }
+      el.innerHTML = '预览：<code class="inline">' +
+        escapeHtml(buildPattern('parent', u)) + '</code>（"上一级及其下所有"）';
+    }
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    document.querySelectorAll('.chip[data-preset]').forEach(el =>
+      el.addEventListener('click', () => genPattern(el.dataset.preset)));
+    $('startUrls').addEventListener('input', updatePatternPreview);
+
+    // drawer & tabs
+    const drawer = $('drawer');
+    $('drawerToggle').onclick = () => drawer.classList.add('open');
+    $('drawerClose').onclick = () => drawer.classList.remove('open');
+    document.querySelectorAll('.drawer .tab').forEach(t => {
+      t.onclick = () => {
+        document.querySelectorAll('.drawer .tab').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const tab = t.dataset.tab;
+        $('logsPane').style.display      = tab === 'logs' ? '' : 'none';
+        $('treePaneWrap').style.display  = tab === 'tree' ? '' : 'none';
+        $('historyPane').style.display   = tab === 'history' ? '' : 'none';
+        if (tab === 'tree') refreshTree();
+        if (tab === 'history') refreshHistory();
+      };
+    });
+
+    // logs + SSE
+    const logs = $('logs');
+    function appendLog(line) {
+      const div = document.createElement('div');
+      div.className = /\[warn\]|\[err /i.test(line) ? 'warn' : 'info';
+      div.textContent = line;
+      logs.appendChild(div);
+      logs.scrollTop = logs.scrollHeight;
+    }
+    let evtSrc = null;
+    function streamJob() {
+      if (evtSrc) evtSrc.close();
+      evtSrc = new EventSource('/api/job/stream');
+      evtSrc.onmessage = (e) => {
+        try { const d = JSON.parse(e.data); if (d.line) appendLog(d.line); } catch {}
+      };
+      evtSrc.addEventListener('status', (e) => {
+        try {
+          const d = JSON.parse(e.data);
+          setStatus(d.status);
+          if (d.status !== 'running') {
+            evtSrc.close(); evtSrc = null; refreshTree();
+            if (d.status === 'done') toast('抓取完成！');
+            else if (d.status === 'error') toast('抓取出错，请查看日志');
+            else if (d.status === 'cancelled') toast('已取消');
+          }
+        } catch {}
+      });
+    }
+    function setStatus(s) {
+      const el = $('jobStatus');
+      el.textContent = s || 'idle';
+      el.className = 'status ' + (s || 'idle');
+      $('cancelBtn').disabled = (s !== 'running');
+      $('crawlBtn').disabled = (s === 'running');
+      $('loginBtn').disabled = (s === 'running');
+    }
+
+    async function startCrawl() {
+      await saveConfig();
+      logs.innerHTML = '';
+      drawer.classList.add('open');
+      const r = await fetch('/api/crawl', { method: 'POST' });
+      if (!r.ok) { const e = await r.json().catch(()=>({})); toast('启动失败: '+(e.error||r.status)); return; }
+      setStatus('running'); streamJob();
+    }
+    async function startLogin() {
+      await saveConfig();
+      logs.innerHTML = '';
+      drawer.classList.add('open');
+      const r = await fetch('/api/login', { method: 'POST' });
+      if (!r.ok) { const e = await r.json().catch(()=>({})); toast('启动失败: '+(e.error||r.status)); return; }
+      setStatus('running'); streamJob();
+    }
+    async function cancelJob() { await fetch('/api/job/cancel', { method: 'POST' }); }
+
+    // tree
+    function renderTree(items, parent) {
+      const ul = document.createElement('ul');
+      for (const it of items) {
+        const li = document.createElement('li');
+        if (it.type === 'dir') {
+          const span = document.createElement('span');
+          span.className = 'dir';
+          span.textContent = '▸ ' + it.name;
+          li.appendChild(span);
+          const child = renderTree(it.children, li);
+          child.style.display = 'none';
+          span.onclick = () => {
+            const open = child.style.display !== 'none';
+            child.style.display = open ? 'none' : 'block';
+            span.textContent = (open ? '▸ ' : '▾ ') + it.name;
+          };
+        } else {
+          const span = document.createElement('span');
+          span.className = 'file';
+          span.textContent = '· ' + it.name;
+          span.onclick = () => previewFile(it.path);
+          li.appendChild(span);
+        }
+        ul.appendChild(li);
+      }
+      parent.appendChild(ul);
+      return ul;
+    }
+    async function refreshTree() {
+      const r = await fetch('/api/tree');
+      const items = await r.json();
+      const el = $('tree');
+      el.innerHTML = '';
+      if (!items.length) { el.textContent = '尚无输出。'; return; }
+      renderTree(items, el);
+    }
+    let currentPreviewText = '';
+    let currentPreviewPath = '';
+    async function previewFile(p) {
+      const r = await fetch('/api/file?path=' + encodeURIComponent(p));
+      const text = await r.text();
+      currentPreviewText = text;
+      currentPreviewPath = p;
+      $('previewPathLabel').textContent = p;
+      $('previewToolbar').classList.add('show');
+      renderPreview();
+    }
+    function renderPreview() {
+      const pv = $('preview');
+      pv.style.display = 'block';
+      const mode = document.querySelector('input[name=previewMode]:checked')?.value || 'rendered';
+      if (mode === 'rendered' && window.marked) {
+        pv.classList.add('rendered');
+        // strip frontmatter
+        const body = currentPreviewText.replace(/^---\n[\s\S]*?\n---\n?/, '');
+        pv.innerHTML = typeof DOMPurify !== 'undefined'
+          ? DOMPurify.sanitize(window.marked.parse(body))
+          : window.marked.parse(body);
+      } else {
+        pv.classList.remove('rendered');
+        pv.textContent = currentPreviewText;
+      }
+    }
+    document.querySelectorAll('input[name=previewMode]').forEach(r =>
+      r.addEventListener('change', renderPreview));
+
+    // history
+    async function refreshHistory() {
+      const r = await fetch('/api/history');
+      const list = await r.json();
+      const el = $('history');
+      if (!list.length) { el.innerHTML = '<div style="color:var(--muted)">暂无历史记录。</div>'; return; }
+      el.innerHTML = list.map(h => {
+        const start = new Date(h.startedAt);
+        const end = h.endedAt ? new Date(h.endedAt) : null;
+        const dur = end ? Math.round((end - start) / 1000) + 's' : '…';
+        const url0 = (h.startUrls && h.startUrls[0]) || '';
+        return `<div class="hist-item">
+          <div class="row1">
+            <span class="kind">${escapeHtml(h.kind || '')}</span>
+            <span class="status ${escapeHtml(h.status || '')}" style="padding:2px 8px;font-size:11px">${escapeHtml(h.status || '')}</span>
+            <span class="url" title="${escapeHtml(url0)}">${escapeHtml(url0)}</span>
+          </div>
+          <div class="meta">${escapeHtml(start.toLocaleString())} · ${escapeHtml(h.scope || '')} · ${dur}${h.processed != null ? ' · '+h.processed+' pages' : ''}${h.error ? ' · '+escapeHtml(h.error) : ''}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // profiles
+    async function refreshProfiles() {
+      const r = await fetch('/api/profiles');
+      const list = await r.json();
+      const sel = $('profileSelect');
+      const current = $('profileDir').value;
+      sel.innerHTML = '';
+      if (!list.length) {
+        const opt = document.createElement('option');
+        opt.value = current || './.profile';
+        opt.textContent = '(当前) ' + (current || './.profile');
+        sel.appendChild(opt);
+      }
+      for (const p of list) {
+        const opt = document.createElement('option');
+        opt.value = p.dir;
+        opt.textContent = p.name + '  —  ' + p.dir;
+        if (p.dir === current) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+    $('profileSelect').addEventListener('change', () => {
+      $('profileDir').value = $('profileSelect').value;
+    });
+    $('createProfileBtn').onclick = async () => {
+      const name = $('newProfileName').value.trim();
+      if (!name) return toast('请输入会话名');
+      const r = await fetch('/api/profiles', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ name })
+      });
+      if (!r.ok) return toast('创建失败');
+      const p = await r.json();
+      $('profileDir').value = p.dir;
+      $('newProfileName').value = '';
+      await refreshProfiles();
+      toast('已创建：' + p.dir);
+    };
+
+    $('saveBtn').onclick = saveConfig;
+    $('loginBtn').onclick = startLogin;
+    $('crawlBtn').onclick = startCrawl;
+    $('cancelBtn').onclick = cancelJob;
+
+    // directory picker
+    let dirTarget = null;
+    let dirCurrentPath = '';
+    async function openDirPicker(targetInputId) {
+      dirTarget = targetInputId;
+      const initial = $(targetInputId).value || '.';
+      await loadDir(initial);
+      $('dirOverlay').classList.add('open');
+    }
+    async function loadDir(dir) {
+      const r = await fetch('/api/browse?dir=' + encodeURIComponent(dir));
+      if (!r.ok) return;
+      const data = await r.json();
+      dirCurrentPath = data.current;
+      $('dirCurrent').textContent = data.current;
+      const list = $('dirList');
+      list.innerHTML = '';
+      if (data.parent) {
+        const up = document.createElement('div');
+        up.className = 'dir-item up';
+        up.textContent = '⬆ ..';
+        up.onclick = () => loadDir(data.parent);
+        list.appendChild(up);
+      }
+      for (const name of data.dirs) {
+        const item = document.createElement('div');
+        item.className = 'dir-item';
+        item.innerHTML = '📁 ' + escapeHtml(name);
+        item.onclick = () => loadDir(dirCurrentPath + '/' + name);
+        list.appendChild(item);
+      }
+    }
+    function closeDirPicker() { $('dirOverlay').classList.remove('open'); }
+    $('dirSelect').onclick = () => {
+      if (dirTarget) $(dirTarget).value = dirCurrentPath;
+      closeDirPicker();
+    };
+    $('dirCancel').onclick = closeDirPicker;
+    $('dirClose').onclick = closeDirPicker;
+    $('dirOverlay').onclick = (e) => { if (e.target === $('dirOverlay')) closeDirPicker(); };
+    $('browseOutputBtn').onclick = () => openDirPicker('output');
+
+    (async function init() {
+      // load DOMPurify for safe HTML rendering
+      try {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = '/vendor/purify.min.js'; s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      } catch { /* will skip sanitize if not loaded */ }
+
+      // load marked for MD preview
+      try {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = '/vendor/marked.min.js'; s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      } catch { /* MD will fall back to source view */ }
+
+      await loadConfig();
+      await refreshProfiles();
+      const r = await fetch('/api/job');
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.status === 'running') { setStatus('running'); drawer.classList.add('open'); streamJob(); }
+      }
+    })();
+  </script>
+</body>
+</html>

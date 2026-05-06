@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Crawl output
+output/
+
+# Browser profiles (contain login sessions/cookies)
+.profile/
+.profile-*/
+
+# App data
+.catchdocs/
+
+# Config with user secrets
+catchdocs.config.json
+
+# Claude Code
+.claude/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

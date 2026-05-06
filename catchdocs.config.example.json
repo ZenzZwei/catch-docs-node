@@ -1,0 +1,39 @@
+{
+  "startUrls": [],
+  "output": "./output",
+  "profileDir": "./.profile",
+  "browserChannel": "msedge",
+  "headless": false,
+  "concurrency": 3,
+  "requestDelayMs": 500,
+  "maxPages": 500,
+  "maxDepth": 6,
+  "sameOriginOnly": true,
+  "scope": "sidebar",
+  "includePatterns": [],
+  "excludePatterns": [
+    "/login",
+    "/logout",
+    "\\?print=",
+    "#"
+  ],
+  "contentSelectors": [
+    "main",
+    "article",
+    "[role=main]",
+    ".markdown-body",
+    "#main-content",
+    ".content"
+  ],
+  "navSelectors": [
+    "nav a",
+    "aside a",
+    "[role=navigation] a",
+    ".toc a",
+    ".sidebar a"
+  ],
+  "waitForSelector": null,
+  "downloadAssets": true,
+  "useSitemap": false,
+  "respectRobots": true
+}
