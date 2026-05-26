@@ -241,3 +241,102 @@ async function extractBySelectors(
     { contentSelectors, navSelectors },
   );
 }
+
+export async function extractSidebarLinks(
+  page: Page,
+  navSelectors: string[],
+): Promise<string[]> {
+  return page.evaluate((navSels) => {
+    const curPath = location.pathname.replace(/\.html?$/, '').replace(/\/$/, '');
+    const candidates: Array<{ urls: string[]; score: number }> = [];
+
+    const navAreas = document.querySelectorAll('nav, aside, [role=navigation]');
+    for (const nav of navAreas) {
+      const cls = (nav.className || '').toLowerCase();
+
+      // Skip top navbar
+      if (cls.includes('navbar')) continue;
+
+      const links = nav.querySelectorAll('a');
+      if (links.length === 0) continue;
+
+      // Skip "In This Article" — most links are anchor links to the same page
+      const anchorCount = Array.from(links).filter(a =>
+        (a.getAttribute('href') || '').includes('#')
+      ).length;
+      if (anchorCount > links.length * 0.6) continue;
+
+      // Find active link
+      let activeLink: HTMLAnchorElement | null = null;
+      for (const a of links) {
+        if (a.classList.contains('active') || a.classList.contains('selected') ||
+            a.classList.contains('current') || a.getAttribute('aria-current') === 'page') {
+          activeLink = a;
+          break;
+        }
+      }
+      if (!activeLink) {
+        for (const a of links) {
+          const href = (a.getAttribute('href') || '').replace(/\.html?$/, '').replace(/\/$/, '');
+          try {
+            const resolved = new URL(href, location.href).pathname.replace(/\.html?$/, '').replace(/\/$/, '');
+            if (resolved === curPath) { activeLink = a; break; }
+          } catch { /* ignore */ }
+        }
+      }
+      if (!activeLink) continue;
+
+      // Walk up from active link to find the enclosing list
+      let container: Element | null = activeLink;
+      while (container && container !== nav) {
+        container = container.parentElement;
+        if (!container) break;
+        if (container.tagName === 'UL' || container.tagName === 'OL') break;
+      }
+      if (!container || container === nav) container = nav;
+
+      // Collect page links (skip anchors)
+      const urls: string[] = [];
+      container.querySelectorAll('a').forEach(a => {
+        const href = a.getAttribute('href');
+        if (!href || href.startsWith('#')) return;
+        try {
+          const abs = new URL(href, location.href);
+          if (abs.origin === location.origin) urls.push(abs.toString());
+        } catch { /* ignore */ }
+      });
+
+      if (urls.length === 0) continue;
+
+      // Score: prefer sidebar-like class names, penalize large link counts (top nav)
+      let score = 0;
+      if (cls.includes('sidebar') || cls.includes('sidetoc') || cls.includes('toc') || cls.includes('side-nav'))
+        score += 100;
+      if (nav.tagName === 'ASIDE') score += 50;
+      if (urls.length <= 20) score += 30;
+      if (urls.length > 50) score -= 50;
+
+      candidates.push({ urls, score });
+    }
+
+    // Pick the highest-scoring nav area
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => b.score - a.score);
+      return candidates[0].urls;
+    }
+
+    // Fallback: explicit navSelectors
+    const fallback: string[] = [];
+    for (const sel of navSels) {
+      document.querySelectorAll<HTMLAnchorElement>(sel).forEach(a => {
+        const href = a.getAttribute('href');
+        if (!href || href.startsWith('#')) return;
+        try {
+          const abs = new URL(href, location.href);
+          if (abs.origin === location.origin) fallback.push(abs.toString());
+        } catch { /* ignore */ }
+      });
+    }
+    return fallback;
+  }, navSelectors);
+}

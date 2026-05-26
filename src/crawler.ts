@@ -11,7 +11,7 @@ import {
   sleep,
   sha256,
 } from './utils.js';
-import { extract } from './extractor.js';
+import { extract, extractSidebarLinks } from './extractor.js';
 import { createConverter, htmlToMarkdown } from './converter.js';
 import { localizeAssets } from './assets.js';
 import { writeMarkdown, writeSummary } from './writer.js';
@@ -66,42 +66,23 @@ export async function runCrawl(cfg: CatchDocsConfig, opts: RunOptions = {}): Pro
 
   // ---- apply scope -----------------------------------------------------
   const scope = cfg.scope ?? 'custom';
-  const derivedIncludes: string[] = [];
   let effectiveMaxDepth = cfg.maxDepth;
   let followLinks = true;
+  let includePatterns: string[] = [];
 
   if (scope === 'single') {
     followLinks = false;
     effectiveMaxDepth = 0;
     log('info', `[scope] single page only`);
-  } else if (scope === 'sidebar') {
-    for (const raw of cfg.startUrls) {
-      try {
-        const u = new URL(raw);
-        // parent path = everything up to the last segment
-        const segs = u.pathname.split('/').filter(Boolean);
-        segs.pop();
-        const parent = '/' + segs.join('/');
-        const base = u.origin + parent;
-        // include self + siblings + descendants under parent
-        const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        derivedIncludes.push(`^${esc}(/|$)`);
-      } catch { /* ignore */ }
-    }
-    log('info', `[scope] sidebar: ${derivedIncludes.join(' | ')}`);
-  } else {
+    includePatterns = [];
+  } else if (scope === 'custom') {
+    includePatterns = cfg.includePatterns;
     log('info', `[scope] custom (use includePatterns)`);
   }
-
-  const includePatterns = scope === 'single'
-    ? []                                          // single: no filter, just the start URL
-    : scope === 'custom'
-      ? cfg.includePatterns
-      : [...derivedIncludes, ...cfg.includePatterns];
+  // sidebar scope is resolved after browser launch (needs page visit)
 
   const outAbs = path.resolve(cfg.output);
   await fs.mkdir(outAbs, { recursive: true });
-  const assetsRoot = path.join(outAbs, 'assets');
 
   const manifest = new ManifestStore(path.join(outAbs, '_meta', 'manifest.json'));
   await manifest.load();
@@ -115,6 +96,65 @@ export async function runCrawl(cfg: CatchDocsConfig, opts: RunOptions = {}): Pro
     url: normalizeUrl(u),
     depth: 0,
   }));
+
+  // Custom scope: auto-seed parent URLs from include patterns
+  // e.g. pattern ^https://host/a/b/c(/|$) → also visit https://host/a/b/c
+  if (scope === 'custom') {
+    for (const pat of cfg.includePatterns) {
+      const m = pat.match(/^\^?(https?:\/\/[^(\[\\*?]+?)(?:\(\/\|\$\)|\/?$)/);
+      if (m) {
+        const seedUrl = m[1].replace(/\\\./g, '.');
+        try {
+          new URL(seedUrl);
+          const norm = normalizeUrl(seedUrl);
+          if (norm && !queue.some(q => q.url === norm)) {
+            queue.push({ url: norm, depth: 0 });
+            log('info', `[scope] auto-seed from pattern: ${norm}`);
+          }
+        } catch { /* ignore */ }
+      }
+    }
+  }
+
+  // ---- sidebar: extract links from actual sidebar DOM -------------------
+  if (scope === 'sidebar') {
+    const seedPage = await ctx.newPage();
+    try {
+      const seedUrl = cfg.startUrls[0];
+      log('info', `[scope] sidebar: visiting ${seedUrl} to discover navigation links...`);
+      await seedPage.goto(seedUrl, { waitUntil: 'networkidle', timeout: 30_000 }).catch(() => {});
+      await seedPage.waitForTimeout(1000);
+      const sidebarLinks = await extractSidebarLinks(seedPage, cfg.navSelectors);
+
+      if (sidebarLinks.length > 0) {
+        for (const link of sidebarLinks) {
+          const norm = normalizeUrl(link);
+          if (norm && !visited.has(norm)) {
+            queue.push({ url: norm, depth: 1 });
+          }
+        }
+        followLinks = false;
+        log('info', `[scope] sidebar: found ${sidebarLinks.length} links from page navigation`);
+      } else {
+        // Fallback: use URL path heuristic
+        log('warn', `[scope] sidebar: no links found in sidebar DOM, falling back to URL path heuristic`);
+        for (const raw of cfg.startUrls) {
+          try {
+            const u = new URL(raw);
+            const segs = u.pathname.split('/').filter(Boolean);
+            segs.pop();
+            const parent = '/' + segs.join('/');
+            const base = u.origin + parent;
+            const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            includePatterns.push(`^${esc}(/|$)`);
+          } catch { /* ignore */ }
+        }
+        includePatterns.push(...cfg.includePatterns);
+      }
+    } finally {
+      await seedPage.close();
+    }
+  }
   const origins = new Set(cfg.startUrls.map(u => new URL(u).origin));
 
   // ---- sitemap / robots ------------------------------------------------
@@ -195,11 +235,12 @@ export async function runCrawl(cfg: CatchDocsConfig, opts: RunOptions = {}): Pro
       const { title, html, links, strategy, navSection } = await extract(page, cfg.contentSelectors, cfg.navSelectors);
       const finalUrl = normalizeUrl(page.url());
       const relPath = urlToRelPath(finalUrl);
-      const mdFileAbs = path.join(outAbs, 'docs', relPath);
+      const mdFileAbs = path.join(outAbs, relPath);
 
       let processedHtml = html;
       if (cfg.downloadAssets) {
-        processedHtml = await localizeAssets(ctx, html, finalUrl, mdFileAbs, assetsRoot);
+        const localAssetsDir = path.join(path.dirname(mdFileAbs), 'assets');
+        processedHtml = await localizeAssets(ctx, html, finalUrl, mdFileAbs, localAssetsDir);
       }
       const markdown = htmlToMarkdown(td, processedHtml);
       const hash = sha256(markdown);
