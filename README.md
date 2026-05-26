@@ -126,11 +126,71 @@ All options go in `catchdocs.config.json` (see `catchdocs.config.example.json`):
 
 ## Scope Modes
 
+### Overview
+
 | Mode | Follows Links | Behavior |
 |---|---|---|
-| `single` | No | Only crawl the start URLs; ignores `includePatterns` |
-| `sidebar` | Yes | Auto-generates regex from parent path of start URL + `includePatterns` |
-| `custom` | Yes | Entirely controlled by `includePatterns` |
+| **Single page** | No | Only crawl the start URLs, don't follow any links |
+| **Sidebar** | No (fixed set) | Visit the start page, parse the sidebar/nav DOM, crawl only the links found there |
+| **Custom** | Yes (recursive) | Recursively follow links filtered by `includePatterns` regex |
+
+### When to Use Which
+
+| I want to... | Scope | How to configure |
+|---|---|---|
+| Grab one specific page | Single page | Paste the URL, select "Single page" |
+| Grab a section's sidebar docs (e.g., "Torus Basics" tab) | Sidebar | Paste the section's landing page URL, select "Sidebar" |
+| Grab an entire product's docs across all tabs/sections | Custom | Paste any page as entry point, select "Custom", add an include pattern |
+| Grab an entire documentation site | Custom | Same as above, use a broader pattern |
+
+### Custom Scope: Include Patterns
+
+When you select "Custom", the UI shows an Include Patterns field and quick-generate buttons:
+
+| Button | Pattern Generated | What It Matches | Example |
+|---|---|---|---|
+| **Current path & subpages** | `^https://host/a/b/c(/\|$)` | The exact path and everything under it | Input `https://eng.ms/docs/products/torus/torus_basics` → matches all pages under `/torus_basics/` |
+| **Parent & all subpages** | `^https://host/a/b(/\|$)` | One level up and everything under it | Input `https://eng.ms/docs/products/torus/torus_basics` → matches all of `/torus/` (all tabs) |
+| **Entire site** | `^https://host/` | All pages on this domain | Matches everything on `eng.ms` |
+| **This page only** | `^https://host/a/b/c$` | Exact URL match | Same as "Single page" but inside custom mode |
+
+### Examples
+
+**Example 1: Grab just the "Torus Basics" sidebar (4 docs)**
+```
+URL:   https://eng.ms/docs/products/torus/torus_basics
+Scope: Sidebar
+```
+The tool visits the page, finds the 4 links in the left sidebar, crawls those and stops.
+
+**Example 2: Grab all Torus documentation (all tabs)**
+```
+URL:     https://eng.ms/docs/products/torus/torus_basics
+Scope:   Custom
+Pattern: ^https://eng\.ms/docs/products/torus(/|$)
+```
+Click "Parent & all subpages" to auto-generate this pattern. Recursively crawls every page under `/torus/`.
+
+**Example 3: Grab a Confluence space**
+```
+URL:     https://wiki.company.com/display/TEAM/Home
+Scope:   Custom
+Pattern: ^https://wiki\.company\.com/display/TEAM(/|$)
+```
+
+**Example 4: Grab a single page for quick reference**
+```
+URL:   https://docs.example.com/api/authentication
+Scope: Single page
+```
+
+### Tips
+
+- **Sidebar mode** is best for small, focused grabs — it only gets what's visible in the sidebar, no more
+- **Custom mode** with "Parent & all subpages" is best for grabbing an entire product/section
+- If a site has flat URLs (all pages at the same path level), "Sidebar" works better than "Custom" for targeted grabs
+- You can combine multiple patterns (one per line) to include pages from different paths
+- Use Exclude Patterns (in Advanced Options) to skip login pages, print views, etc. — defaults already exclude `/login`, `/logout`, `?print=`
 
 ## Architecture
 

@@ -173,13 +173,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   }
   if (p === '/api/tree' && method === 'GET') {
     const cfg = await loadConfigFile().catch(() => ({ output: './output' } as any));
-    const docs = path.resolve(cfg.output || './output', 'docs');
-    return sendJson(res, 200, await walk(docs).catch(() => []));
+    const outDir = path.resolve(cfg.output || './output');
+    return sendJson(res, 200, await walk(outDir).catch(() => []));
   }
   if (p === '/api/file' && method === 'GET') {
     const q = url.searchParams.get('path') || '';
     const cfg = await loadConfigFile().catch(() => ({ output: './output' } as any));
-    const root = path.resolve(cfg.output || './output', 'docs');
+    const root = path.resolve(cfg.output || './output');
     const abs = path.resolve(root, q);
     if (!abs.toLowerCase().startsWith(root.toLowerCase())) return sendJson(res, 400, { error: 'path escape' });
     try {

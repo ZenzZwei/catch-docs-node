@@ -14,7 +14,7 @@ export interface WriteInput {
 }
 
 export async function writeMarkdown(input: WriteInput): Promise<string> {
-  const abs = path.join(input.outputRoot, 'docs', input.relPath);
+  const abs = path.join(input.outputRoot, input.relPath);
   await fs.mkdir(path.dirname(abs), { recursive: true });
 
   const lines = [
@@ -50,40 +50,53 @@ export async function writeSummary(
 ): Promise<void> {
   const sorted = [...records].sort((a, b) => a.path.localeCompare(b.path));
 
-  // Group by navSection
-  const sectioned = new Map<string, PageRecord[]>();
-  const unsectioned: PageRecord[] = [];
+  // Group by site (hostname)
+  const bySite = new Map<string, PageRecord[]>();
   for (const r of sorted) {
-    if (r.navSection) {
-      let list = sectioned.get(r.navSection);
-      if (!list) { list = []; sectioned.set(r.navSection, list); }
-      list.push(r);
-    } else {
-      unsectioned.push(r);
-    }
+    const site = r.path.split(/[\\/]/)[0] || '_unknown';
+    let list = bySite.get(site);
+    if (!list) { list = []; bySite.set(site, list); }
+    list.push(r);
   }
 
-  const lines: string[] = ['# Summary', ''];
-
-  for (const [section, pages] of sectioned) {
-    lines.push(`## ${escapeMd(section)}`, '');
+  for (const [site, pages] of bySite) {
+    // Group by navSection within each site
+    const sectioned = new Map<string, PageRecord[]>();
+    const unsectioned: PageRecord[] = [];
     for (const r of pages) {
-      const link = r.path.replace(/\\/g, '/');
-      lines.push(`- [${escapeMd(r.title || link)}](docs/${link})`);
+      if (r.navSection) {
+        let list = sectioned.get(r.navSection);
+        if (!list) { list = []; sectioned.set(r.navSection, list); }
+        list.push(r);
+      } else {
+        unsectioned.push(r);
+      }
     }
-    lines.push('');
-  }
 
-  if (unsectioned.length) {
-    if (sectioned.size > 0) lines.push('## Other', '');
-    for (const r of unsectioned) {
-      const link = r.path.replace(/\\/g, '/');
-      lines.push(`- [${escapeMd(r.title || link)}](docs/${link})`);
+    const lines: string[] = [`# ${site}`, ''];
+
+    for (const [section, sectionPages] of sectioned) {
+      lines.push(`## ${escapeMd(section)}`, '');
+      for (const r of sectionPages) {
+        const link = r.path.replace(/\\/g, '/');
+        lines.push(`- [${escapeMd(r.title || link)}](${link})`);
+      }
+      lines.push('');
     }
-    lines.push('');
-  }
 
-  await fs.writeFile(path.join(outputRoot, 'SUMMARY.md'), lines.join('\n'), 'utf-8');
+    if (unsectioned.length) {
+      if (sectioned.size > 0) lines.push('## Other', '');
+      for (const r of unsectioned) {
+        const link = r.path.replace(/\\/g, '/');
+        lines.push(`- [${escapeMd(r.title || link)}](${link})`);
+      }
+      lines.push('');
+    }
+
+    const siteDir = path.join(outputRoot, site);
+    await fs.mkdir(siteDir, { recursive: true });
+    await fs.writeFile(path.join(siteDir, 'SUMMARY.md'), lines.join('\n'), 'utf-8');
+  }
 }
 
 function escapeMd(s: string): string {
